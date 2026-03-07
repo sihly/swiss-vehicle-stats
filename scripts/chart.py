@@ -205,8 +205,16 @@ def main():
     chart_powertrain_split()
     chart_top_brands()
     chart_manufacturer_origin()
-    chart_colors()
-    chart_private_vs_commercial()
+
+    if (DATA_DIR / "color_totals.csv").exists():
+        chart_colors()
+    else:
+        print("  Skip: colors (no data)")
+
+    if (DATA_DIR / "usage_totals.csv").exists():
+        chart_private_vs_commercial()
+    else:
+        print("  Skip: usage type (no data)")
 
     print("\nDone.")
 
