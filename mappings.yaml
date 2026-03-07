@@ -1,0 +1,189 @@
+# Classification mappings for Swiss vehicle registration data
+# Edit this file to correct misclassifications — no code changes needed.
+# Unknown values automatically go to "Other" bucket.
+
+# Brand → country of origin (by brand heritage, not corporate HQ)
+brand_origin:
+  # German
+  AUDI: Germany
+  BMW: Germany
+  MERCEDES-BENZ: Germany
+  MERCEDES BENZ: Germany
+  VOLKSWAGEN: Germany
+  VW: Germany
+  PORSCHE: Germany
+  OPEL: Germany
+  SMART: Germany
+  MINI: Germany
+  MAYBACH: Germany
+  MAN: Germany
+
+  # French
+  PEUGEOT: France
+  RENAULT: France
+  CITROEN: France
+  CITROËN: France
+  DS: France
+  ALPINE: France
+  DACIA: France
+  BUGATTI: France
+
+  # Italian
+  FIAT: Italy
+  ALFA ROMEO: Italy
+  FERRARI: Italy
+  LAMBORGHINI: Italy
+  MASERATI: Italy
+  LANCIA: Italy
+  ABARTH: Italy
+  IVECO: Italy
+
+  # Japanese
+  TOYOTA: Japan
+  HONDA: Japan
+  NISSAN: Japan
+  MAZDA: Japan
+  SUBARU: Japan
+  SUZUKI: Japan
+  MITSUBISHI: Japan
+  LEXUS: Japan
+  INFINITI: Japan
+  ISUZU: Japan
+  DAIHATSU: Japan
+
+  # South Korean
+  HYUNDAI: South Korea
+  KIA: South Korea
+  GENESIS: South Korea
+  SSANGYONG: South Korea
+
+  # American
+  FORD: USA
+  CHEVROLET: USA
+  JEEP: USA
+  DODGE: USA
+  CHRYSLER: USA
+  CADILLAC: USA
+  TESLA: USA
+  LINCOLN: USA
+  GMC: USA
+  RAM: USA
+  BUICK: USA
+  CORVETTE: USA
+  RIVIAN: USA
+  LUCID: USA
+
+  # British
+  LAND ROVER: UK
+  JAGUAR: UK
+  BENTLEY: UK
+  ROLLS-ROYCE: UK
+  ROLLS ROYCE: UK
+  ASTON MARTIN: UK
+  MCLAREN: UK
+  LOTUS: UK
+  MG: UK
+  CATERHAM: UK
+
+  # Swedish
+  VOLVO: Sweden
+  POLESTAR: Sweden
+  KOENIGSEGG: Sweden
+
+  # Czech
+  SKODA: Czech Republic
+  ŠKODA: Czech Republic
+
+  # Spanish
+  SEAT: Spain
+  CUPRA: Spain
+
+  # Romanian
+  DACIA: Romania
+
+  # Chinese
+  BYD: China
+  NIO: China
+  XPENG: China
+  AIWAYS: China
+  LYNK & CO: China
+  LYNK: China
+  MAXUS: China
+  DONGFENG: China
+  GEELY: China
+  GREAT WALL: China
+  GWM: China
+  CHERY: China
+  JAC: China
+  SERES: China
+  LEAP MOTOR: China
+  LEAPMOTOR: China
+  ORA: China
+  HONGQI: China
+  ZEEKR: China
+  OMODA: China
+  JAECOO: China
+  VOYAH: China
+  WULING: China
+  MG: China  # Originally British, now SAIC-owned — classify as China for market analysis
+
+  # Indian
+  TATA: India
+  MAHINDRA: India
+
+  # Malaysian
+  PROTON: Malaysia
+
+# Country → continent mapping
+country_continent:
+  Germany: Europe
+  France: Europe
+  Italy: Europe
+  UK: Europe
+  Sweden: Europe
+  Czech Republic: Europe
+  Spain: Europe
+  Romania: Europe
+  Japan: Asia
+  South Korea: Asia
+  China: Asia
+  India: Asia
+  Malaysia: Asia
+  USA: North America
+  Other: Other
+
+# Fuel type normalization
+fuel_types:
+  Benzin: Petrol
+  Diesel: Diesel
+  Elektrisch: BEV
+  Benzin/Elektrisch: Hybrid (Petrol)
+  Diesel/Elektrisch: Hybrid (Diesel)
+  Wasserstoff: Hydrogen
+  Erdgas (CNG)/Benzin: CNG
+  Erdgas: CNG
+  LPG/Benzin: LPG
+
+# Plate color → usage type
+plate_usage:
+  Weiss: Private
+  Blau: Commercial
+  Grün: Agricultural
+  Schwarz: Military
+  Braun: Temporary
+
+# Color translation (German → English)
+colors:
+  Schwarz: Black
+  Weiss: White
+  Grau: Grey
+  Silber: Silver
+  Blau: Blue
+  Rot: Red
+  Grün: Green
+  Braun: Brown
+  Orange: Orange
+  Gelb: Yellow
+  Violett: Purple
+  Beige: Beige
+  Gold: Gold
