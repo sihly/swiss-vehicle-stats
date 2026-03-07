@@ -6,18 +6,47 @@ Automated analytics dashboard for Swiss new vehicle registrations, built from [A
 
 A GitHub Actions pipeline downloads raw registration data monthly, aggregates it, generates charts, and produces a delta report with MoM, YoY, and YTD comparisons.
 
-## Charts
+---
 
-| Chart | Description |
-|-------|-------------|
-| [Yearly Registrations](charts/01_yearly_registrations.svg) | Total new passenger car registrations per year (2016+) |
-| [Powertrain Mix](charts/02_powertrain_absolute.svg) | Absolute registrations by powertrain type (annual stacked bar) |
-| [Top Brands](charts/03_top_brands.svg) | Top 15 brands by total registrations |
-| [Manufacturer Origin](charts/04_manufacturer_origin.svg) | Registrations by manufacturer country of origin |
-| [Winners & Losers](charts/05_winners_losers.svg) | Top 5 brand gainers and losers vs prior year |
-| [Colors](charts/06_colors.svg) | Vehicle color distribution |
-| [Usage Type](charts/07_usage_type.svg) | Private vs commercial registrations |
-| [Drive Type](charts/08_drive_type.svg) | AWD/FWD/RWD share over time |
+## Dashboard
+
+### New Registrations Trend
+
+Total passenger car registrations per year since 2016. The COVID-19 impact in 2020 is clearly visible, with the market not yet recovering to pre-pandemic levels.
+
+![Yearly Registrations](charts/01_yearly_registrations.png)
+
+### Powertrain Transition
+
+How Switzerland's new car market is shifting from combustion to electric. Petrol and diesel are shrinking while BEV and PHEV grow year over year.
+
+![Powertrain Mix](charts/02_powertrain_absolute.png)
+
+### Brand Rankings Over Time
+
+Position changes of the top 10 brands. Watch for brands climbing or falling through the ranks across a decade of data.
+
+![Brand Rankings](charts/03_brand_rankings.png)
+
+### Manufacturer Origin
+
+Market share by country of origin over time. Shows the evolution of German, Japanese, South Korean, and emerging Chinese manufacturer presence in Switzerland.
+
+![Origin Over Time](charts/04_origin_over_time.png)
+
+### Vehicle Colors
+
+Color distribution across all registrations since 2016. Grey, white, and black dominate — accounting for over 75% of all new cars.
+
+![Colors](charts/05_colors.png)
+
+### Drive Type (AWD/FWD/RWD)
+
+Switzerland's preference for all-wheel drive, likely driven by alpine geography and weather conditions.
+
+![Drive Type](charts/06_drive_type.png)
+
+---
 
 ## How It Works
 
@@ -27,7 +56,7 @@ download.py -> process.py -> chart.py -> report.py
 
 1. **Download** -- fetches NEUZU.txt (current year) and archive files (2016-2025) from ASTRA
 2. **Process** -- parses TSV files with dtype optimization, applies `mappings.yaml` classifications, outputs aggregated CSVs
-3. **Chart** -- generates SVG charts with professional styling and dynamic attribution
+3. **Chart** -- generates charts with professional styling and dynamic attribution
 4. **Report** -- produces a monthly delta report (MoM + YoY + YTD) in markdown
 
 Runs automatically on the 5th of each month via GitHub Actions. Can also be triggered manually.
@@ -39,7 +68,6 @@ All classifications are driven by `mappings.yaml`:
 - **Corporate group** -- parent company (Fiat = Stellantis, Audi = Volkswagen Group)
 - **Fuel type** -- normalized powertrain categories
 - **Colors** -- German to English translation
-- **Plate color** -- private/commercial/agricultural/military
 - **Drive type** -- AWD/FWD/RWD
 
 Unknown values go to an "Other" bucket and are logged to `warnings.log` for review. Edit `mappings.yaml` to reclassify -- no code changes needed.
@@ -66,7 +94,7 @@ uv run scripts/report.py      # instant
 **Coverage:** 2016-present (~250k-320k passenger cars per year)
 **Scope:** Passenger cars (Personenwagen) only
 
-Raw data files (~100MB each) are not committed to this repo. Only aggregated CSVs and SVG charts are tracked in git.
+Raw data files (~100MB each) are not committed to this repo. Only aggregated CSVs and charts are tracked in git.
 
 ## Data Attribution
 
