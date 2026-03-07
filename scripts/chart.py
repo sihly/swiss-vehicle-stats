@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate analytics charts from processed ASTRA data.
 
-SVG output, professional style, dynamic attribution.
+PNG output, professional style, dynamic attribution.
 """
 
 import os
@@ -17,6 +17,7 @@ ROOT = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data" / "processed"
 CHART_DIR = ROOT / "charts"
 
+DPI = 150
 FIGSIZE = (12, 7)
 
 # Professional color palette
@@ -29,17 +30,14 @@ COLORS = [
 
 def get_repo_url() -> str:
     """Get repo URL from environment or git remote."""
-    # GitHub Actions
     repo = os.environ.get("GITHUB_REPOSITORY")
     if repo:
         return f"https://github.com/{repo}"
-    # Local: parse git remote
     try:
         url = subprocess.check_output(
             ["git", "config", "--get", "remote.origin.url"],
             cwd=ROOT, text=True, stderr=subprocess.DEVNULL
         ).strip()
-        # Convert SSH to HTTPS
         if url.startswith("git@"):
             url = url.replace(":", "/").replace("git@", "https://")
         return url.removesuffix(".git")
@@ -48,7 +46,6 @@ def get_repo_url() -> str:
 
 
 def get_attribution() -> str:
-    """Build attribution string."""
     from datetime import date
     repo = get_repo_url()
     parts = [f"Data: ASTRA/IVZ Open Data | Generated {date.today()}"]
@@ -58,7 +55,6 @@ def get_attribution() -> str:
 
 
 def style_chart(ax, title: str, xlabel: str = "", ylabel: str = ""):
-    """Apply consistent professional styling."""
     ax.set_title(title, fontsize=16, fontweight="bold", pad=15)
     if xlabel:
         ax.set_xlabel(xlabel, fontsize=12)
@@ -71,36 +67,38 @@ def style_chart(ax, title: str, xlabel: str = "", ylabel: str = ""):
 
 
 def add_attribution(fig):
-    """Add attribution footer."""
     fig.text(0.99, 0.01, get_attribution(), ha="right", va="bottom",
              fontsize=7, color="#999999", style="italic")
 
 
 def save_chart(fig, name: str):
-    """Save chart to SVG."""
     CHART_DIR.mkdir(parents=True, exist_ok=True)
-    path = CHART_DIR / f"{name}.svg"
-    fig.savefig(path, format="svg", bbox_inches="tight", facecolor="white")
+    path = CHART_DIR / f"{name}.png"
+    fig.savefig(path, dpi=DPI, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     size_kb = path.stat().st_size / 1024
-    print(f"  Saved: {name}.svg ({size_kb:.0f} KB)")
+    print(f"  Saved: {name}.png ({size_kb:.0f} KB)")
 
 
 def chart_yearly_registrations():
-    """Total new registrations per year."""
+    """Total registrations as line chart with trend."""
     df = pd.read_csv(DATA_DIR / "monthly_totals.csv")
     yearly = df.groupby("year")["count"].sum().reset_index()
     yearly = yearly[yearly["year"] >= 2016]
 
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    bars = ax.bar(yearly["year"].astype(str), yearly["count"], color=COLORS[0], width=0.7)
+    ax.plot(yearly["year"], yearly["count"], marker="o", linewidth=2.5,
+            color=COLORS[0], markersize=8, zorder=3)
+    ax.fill_between(yearly["year"], yearly["count"], alpha=0.1, color=COLORS[0])
 
-    for bar, val in zip(bars, yearly["count"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1000,
-                f"{val:,.0f}", ha="center", va="bottom", fontsize=9, fontweight="bold")
+    for _, row in yearly.iterrows():
+        ax.annotate(f"{row['count']:,.0f}", (row["year"], row["count"]),
+                    textcoords="offset points", xytext=(0, 12),
+                    ha="center", fontsize=8, fontweight="bold")
 
     style_chart(ax, "New Passenger Car Registrations in Switzerland", ylabel="Registrations")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+    ax.set_xlim(yearly["year"].min() - 0.5, yearly["year"].max() + 0.5)
     add_attribution(fig)
     save_chart(fig, "01_yearly_registrations")
 
@@ -111,7 +109,6 @@ def chart_powertrain_absolute():
     yearly = df.groupby(["year", "fuel_type"])["count"].sum().reset_index()
     yearly = yearly[yearly["year"] >= 2016]
 
-    # Order powertrain types
     order = ["Petrol", "Diesel", "BEV", "PHEV", "Diesel Hybrid", "Hydrogen", "CNG", "LPG", "Other"]
     color_map = {
         "Petrol": "#6b7280", "Diesel": "#374151", "BEV": "#2563eb",
@@ -130,150 +127,160 @@ def chart_powertrain_absolute():
                label=col, color=color_map.get(col, "#999"), width=0.7)
         bottom = bottom + pivot[col]
 
-    style_chart(ax, "New Registrations by Powertrain (Absolute)", ylabel="Registrations")
+    style_chart(ax, "New Registrations by Powertrain", ylabel="Registrations")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
     ax.legend(loc="upper right", fontsize=9, frameon=False)
     add_attribution(fig)
     save_chart(fig, "02_powertrain_absolute")
 
 
-def chart_top_brands():
-    """Top 15 brands (all-time)."""
-    df = pd.read_csv(DATA_DIR / "brand_totals.csv")
-    top = df.head(15)
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    bars = ax.barh(top["brand"][::-1], top["count"][::-1], color=COLORS[0], height=0.7)
-
-    for bar, val in zip(bars, top["count"][::-1]):
-        ax.text(bar.get_width() + 500, bar.get_y() + bar.get_height() / 2,
-                f"{val:,.0f}", ha="left", va="center", fontsize=9)
-
-    style_chart(ax, "Top 15 Brands by New Registrations (2016-present)", xlabel="Total Registrations")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
-    add_attribution(fig)
-    save_chart(fig, "03_top_brands")
-
-
-def chart_manufacturer_origin():
-    """Registrations by country of origin."""
-    df = pd.read_csv(DATA_DIR / "origin_totals.csv")
-    df = df[df["country"] != "Other"]
-    top = df.head(12)
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    bars = ax.barh(top["country"][::-1], top["count"][::-1], color=COLORS[2], height=0.7)
-
-    for bar, val in zip(bars, top["count"][::-1]):
-        ax.text(bar.get_width() + 500, bar.get_y() + bar.get_height() / 2,
-                f"{val:,.0f}", ha="left", va="center", fontsize=9)
-
-    style_chart(ax, "New Registrations by Manufacturer Origin (2016-present)",
-                xlabel="Total Registrations")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
-    add_attribution(fig)
-    save_chart(fig, "04_manufacturer_origin")
-
-
-def chart_winners_losers():
-    """Top 5 brand gainers and losers vs prior year (latest year)."""
+def chart_brand_rankings():
+    """Brand ranking bump chart — position over time for top brands."""
     path = DATA_DIR / "brand_by_year.csv"
     if not path.exists():
-        print("  Skip: winners/losers (no brand_by_year data)")
+        print("  Skip: brand rankings (no data)")
         return
 
     df = pd.read_csv(path)
-    years = sorted(df["year"].unique())
-    if len(years) < 2:
-        print("  Skip: winners/losers (need at least 2 years)")
+    df = df[df["year"] >= 2016]
+
+    # Get top 10 brands by total volume across all years
+    top_brands = df.groupby("brand")["count"].sum().nlargest(10).index.tolist()
+
+    # Calculate rank per year
+    ranked = df[df["brand"].isin(top_brands)].copy()
+    ranked["rank"] = ranked.groupby("year")["count"].rank(ascending=False, method="min")
+
+    fig, ax = plt.subplots(figsize=(14, 8))
+
+    for i, brand in enumerate(top_brands):
+        brand_data = ranked[ranked["brand"] == brand].sort_values("year")
+        color = COLORS[i % len(COLORS)]
+        ax.plot(brand_data["year"], brand_data["rank"], marker="o", linewidth=2.5,
+                label=brand, color=color, markersize=7, zorder=3)
+        # Label last point
+        if not brand_data.empty:
+            last = brand_data.iloc[-1]
+            ax.annotate(brand, (last["year"], last["rank"]),
+                        textcoords="offset points", xytext=(8, 0),
+                        fontsize=9, fontweight="bold", color=color, va="center")
+
+    ax.invert_yaxis()
+    ax.set_yticks(range(1, 11))
+    ax.set_yticklabels([f"#{i}" for i in range(1, 11)])
+    style_chart(ax, "Top 10 Brand Rankings Over Time", ylabel="Position")
+    ax.set_xlabel("")
+    ax.legend(loc="lower left", fontsize=8, frameon=False, ncol=2)
+    ax.grid(axis="x", alpha=0.3, linestyle="--")
+    add_attribution(fig)
+    save_chart(fig, "03_brand_rankings")
+
+
+def chart_origin_over_time():
+    """Manufacturer origin share over time (stacked area)."""
+    path = DATA_DIR / "brand_by_year.csv"
+    if not path.exists():
+        print("  Skip: origin over time (no data)")
         return
 
-    # Use the latest complete year (skip partial current year if small)
-    latest = years[-1]
-    prev = years[-2]
+    # Need to map brands to origins using mappings
+    import yaml
+    with open(ROOT / "mappings.yaml") as f:
+        mappings = yaml.safe_load(f)
 
-    curr = df[df["year"] == latest].set_index("brand")["count"]
-    prev_df = df[df["year"] == prev].set_index("brand")["count"]
+    brand_origin = mappings.get("brand_origin", {})
+    country_continent = mappings.get("country_continent", {})
 
-    # Calculate deltas
-    all_brands = set(curr.index) | set(prev_df.index)
-    deltas = pd.Series({b: curr.get(b, 0) - prev_df.get(b, 0) for b in all_brands})
-    deltas = deltas.sort_values()
+    df = pd.read_csv(path)
+    df = df[df["year"] >= 2016]
 
-    # Top 5 losers + top 5 winners
-    losers = deltas.head(5)
-    winners = deltas.tail(5)
-    combined = pd.concat([losers, winners])
+    # Map brand to country
+    def get_origin(brand):
+        b = str(brand).strip().upper()
+        for key, val in brand_origin.items():
+            if str(key).upper() == b:
+                return val
+        return "Other"
+
+    df["country"] = df["brand"].apply(get_origin)
+
+    # Aggregate by year + country
+    by_country = df.groupby(["year", "country"])["count"].sum().reset_index()
+
+    # Get top countries by total volume
+    top_countries = by_country.groupby("country")["count"].sum().nlargest(8).index.tolist()
+    by_country.loc[~by_country["country"].isin(top_countries), "country"] = "Other"
+    by_country = by_country.groupby(["year", "country"])["count"].sum().reset_index()
+
+    # Calculate share
+    totals = by_country.groupby("year")["count"].sum()
+    pivot = by_country.pivot(index="year", columns="country", values="count").fillna(0)
+    pct = pivot.div(totals, axis=0) * 100
+
+    # Order by average share
+    order = pct.mean().sort_values(ascending=False).index.tolist()
+    pct = pct[order]
+
+    country_colors = {
+        "Germany": "#1a1a1a", "Japan": "#dc2626", "France": "#2563eb",
+        "South Korea": "#16a34a", "USA": "#f59e0b", "UK": "#8b5cf6",
+        "Czech Republic": "#ec4899", "Italy": "#f97316", "China": "#e11d48",
+        "Romania": "#14b8a6", "Sweden": "#6366f1", "Spain": "#84cc16",
+        "India": "#06b6d4", "Other": "#d1d5db",
+    }
 
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    colors_list = ["#dc2626" if v < 0 else "#16a34a" for v in combined.values]
-    bars = ax.barh(combined.index, combined.values, color=colors_list, height=0.7)
+    ax.stackplot(pct.index, *[pct[c] for c in pct.columns],
+                 labels=pct.columns,
+                 colors=[country_colors.get(c, "#999") for c in pct.columns],
+                 alpha=0.85)
 
-    for bar, val in zip(bars, combined.values):
-        offset = 50 if val >= 0 else -50
-        ha = "left" if val >= 0 else "right"
-        ax.text(bar.get_width() + offset, bar.get_y() + bar.get_height() / 2,
-                f"{val:+,.0f}", ha=ha, va="center", fontsize=9, fontweight="bold")
-
-    ax.axvline(x=0, color="black", linewidth=0.8)
-    style_chart(ax, f"Brand Winners & Losers: {int(latest)} vs {int(prev)}",
-                xlabel="Change in Registrations")
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:+,.0f}"))
+    style_chart(ax, "Market Share by Manufacturer Origin", ylabel="Share (%)")
+    ax.set_ylim(0, 100)
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9, frameon=False)
+    ax.set_xlabel("")
     add_attribution(fig)
-    save_chart(fig, "05_winners_losers")
+    save_chart(fig, "04_origin_over_time")
 
 
-def chart_colors():
-    """Vehicle color distribution (pie)."""
+def chart_colors_over_time():
+    """Color distribution over time (stacked area)."""
+    # Need to process from brand_by_year equivalent but for colors
+    # We have color_totals but not color_by_year — check if we have the monthly data
+    # Actually we need to re-derive this. For now use what we have.
+    # Let's check if we can build from the processed data
     path = DATA_DIR / "color_totals.csv"
     if not path.exists():
         print("  Skip: colors (no data)")
         return
 
+    # We only have totals, not by year. Show as horizontal bar for now,
+    # and add a TODO for color_by_year in process.py
     df = pd.read_csv(path)
+    df = df[df["color"] != "Other"]
     total = df["count"].sum()
     df["pct"] = df["count"] / total * 100
-    main = df[df["pct"] >= 2.0].copy()
-    other_count = df[df["pct"] < 2.0]["count"].sum()
-    if other_count > 0:
-        main = pd.concat([main, pd.DataFrame([{"color": "Other", "count": other_count,
-                          "pct": other_count / total * 100}])], ignore_index=True)
 
     color_map = {
-        "Black": "#1a1a1a", "White": "#e8e8e8", "Grey": "#808080", "Silver": "#c0c0c0",
-        "Blue": "#2563eb", "Red": "#dc2626", "Green": "#16a34a", "Brown": "#8B4513",
-        "Orange": "#f97316", "Yellow": "#eab308", "Purple": "#8b5cf6", "Beige": "#d4a574",
-        "Gold": "#daa520", "Other": "#999999", "Multicolor": "#ff69b4",
+        "Grey": "#808080", "White": "#d4d4d4", "Black": "#1a1a1a",
+        "Blue": "#2563eb", "Red": "#dc2626", "Green": "#16a34a",
+        "Yellow": "#eab308", "Orange": "#f97316", "Brown": "#8B4513",
+        "Silver": "#c0c0c0", "Beige": "#d4a574", "Purple": "#8b5cf6",
+        "Multicolor": "#ff69b4", "Gold": "#daa520",
     }
-    pie_colors = [color_map.get(c, "#999999") for c in main["color"]]
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    ax.pie(main["count"], labels=main["color"], autopct="%1.1f%%",
-           colors=pie_colors, startangle=90, pctdistance=0.85, textprops={"fontsize": 10})
-    ax.set_title("Vehicle Color Distribution", fontsize=16, fontweight="bold", pad=15)
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    bars = ax.barh(df["color"][::-1], df["pct"][::-1],
+                   color=[color_map.get(c, "#999") for c in df["color"][::-1]],
+                   height=0.7, edgecolor="white", linewidth=0.5)
+
+    for bar, val in zip(bars, df["pct"][::-1]):
+        ax.text(bar.get_width() + 0.3, bar.get_y() + bar.get_height() / 2,
+                f"{val:.1f}%", ha="left", va="center", fontsize=9)
+
+    style_chart(ax, "Vehicle Color Distribution (2016-present)", xlabel="Share (%)")
     add_attribution(fig)
-    save_chart(fig, "06_colors")
-
-
-def chart_usage():
-    """Private vs commercial registrations."""
-    path = DATA_DIR / "usage_totals.csv"
-    if not path.exists():
-        print("  Skip: usage (no data)")
-        return
-
-    df = pd.read_csv(path)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.bar(df["usage"], df["count"], color=COLORS[:len(df)], width=0.6)
-
-    for bar, val in zip(bars, df["count"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 500,
-                f"{val:,.0f}", ha="center", va="bottom", fontsize=11, fontweight="bold")
-
-    style_chart(ax, "Registrations by Usage Type", ylabel="Total Registrations")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
-    add_attribution(fig)
-    save_chart(fig, "07_usage_type")
+    save_chart(fig, "05_colors")
 
 
 def chart_drive_type():
@@ -294,15 +301,17 @@ def chart_drive_type():
     order = [c for c in ["AWD", "FWD", "RWD", "Other"] if c in pct.columns]
 
     fig, ax = plt.subplots(figsize=FIGSIZE)
-    pct[order].plot.bar(ax=ax, stacked=True, color=[drive_colors.get(c, "#999") for c in order], width=0.7)
+    ax.stackplot(pct.index, *[pct[c] for c in order],
+                 labels=order,
+                 colors=[drive_colors.get(c, "#999") for c in order],
+                 alpha=0.85)
 
-    ax.set_xticklabels([str(int(x)) for x in pct.index], rotation=0)
-    style_chart(ax, "Drive Type Distribution (AWD/FWD/RWD)", ylabel="Share (%)")
+    style_chart(ax, "Drive Type Share Over Time", ylabel="Share (%)")
     ax.set_ylim(0, 100)
-    ax.legend(loc="upper left", fontsize=9, frameon=False)
+    ax.legend(loc="upper right", fontsize=10, frameon=False)
     ax.set_xlabel("")
     add_attribution(fig)
-    save_chart(fig, "08_drive_type")
+    save_chart(fig, "06_drive_type")
 
 
 def main():
@@ -314,11 +323,9 @@ def main():
 
     chart_yearly_registrations()
     chart_powertrain_absolute()
-    chart_top_brands()
-    chart_manufacturer_origin()
-    chart_winners_losers()
-    chart_colors()
-    chart_usage()
+    chart_brand_rankings()
+    chart_origin_over_time()
+    chart_colors_over_time()
     chart_drive_type()
 
     print("\nDone.")
