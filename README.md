@@ -46,6 +46,12 @@ Switzerland's preference for all-wheel drive, likely driven by alpine geography 
 
 ![Drive Type](charts/06_drive_type.png)
 
+### Geographic Distribution (Experimental)
+
+Mercedes-Benz new registrations by canton for the most recent 3 months. An experiment in GIS-based charting -- to be extended to other brands and time ranges.
+
+![Mercedes Canton Heatmap](charts/07_mercedes_canton_heatmap.png)
+
 ---
 
 ## How It Works

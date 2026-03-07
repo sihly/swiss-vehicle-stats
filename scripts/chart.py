@@ -314,6 +314,111 @@ def chart_drive_type():
     save_chart(fig, "06_drive_type")
 
 
+def chart_canton_heatmap():
+    """[Experimental] Geographic heatmap of registrations by canton.
+
+    Currently hardcoded to Mercedes-Benz, last 3 months of available data.
+    Requires geopandas and data/ch-cantons.geojson.
+    """
+    geojson_path = ROOT / "data" / "ch-cantons.geojson"
+    if not geojson_path.exists():
+        print("  Skip: canton heatmap (no ch-cantons.geojson)")
+        return
+
+    try:
+        import geopandas as gpd
+        import matplotlib.colors as mcolors
+    except ImportError:
+        print("  Skip: canton heatmap (geopandas not installed)")
+        return
+
+    # Find the two most recent raw files to cover ~3 months
+    raw_dir = ROOT / "data" / "raw"
+    if not raw_dir.exists():
+        print("  Skip: canton heatmap (no raw data)")
+        return
+
+    raw_files = sorted(raw_dir.glob("NEUZU*.txt"))
+    if not raw_files:
+        print("  Skip: canton heatmap (no raw files)")
+        return
+
+    # Load last 2 files (current year + previous year archive)
+    cols = ["Fahrzeugart", "Marke", "Erstinverkehrsetzung_Kanton",
+            "Erstinverkehrsetzung_Jahr", "Erstinverkehrsetzung_Monat"]
+    dfs = []
+    for f in raw_files[-2:]:
+        available = []
+        with open(f, "r", encoding="utf-8", errors="replace") as fh:
+            header = [c.strip() for c in fh.readline().split("\t")]
+        available = [c for c in cols if c in header]
+        if len(available) < len(cols):
+            continue
+        df = pd.read_csv(f, sep="\t", usecols=available, dtype=str)
+        dfs.append(df)
+
+    if not dfs:
+        print("  Skip: canton heatmap (could not read raw files)")
+        return
+
+    df = pd.concat(dfs, ignore_index=True)
+    df = df[df["Fahrzeugart"].str.contains("Personenwagen", case=False, na=False)]
+    df = df[df["Marke"].str.contains("MERCEDES", case=False, na=False)]
+    df["year"] = pd.to_numeric(df["Erstinverkehrsetzung_Jahr"], errors="coerce")
+    df["month"] = pd.to_numeric(df["Erstinverkehrsetzung_Monat"], errors="coerce")
+
+    # Find last 3 months in data
+    df["ym"] = df["year"] * 100 + df["month"]
+    last_3 = sorted(df["ym"].dropna().unique())[-3:]
+    recent = df[df["ym"].isin(last_3)]
+
+    if recent.empty:
+        print("  Skip: canton heatmap (no recent data)")
+        return
+
+    # Determine date range for title
+    months = sorted(recent[["year", "month"]].drop_duplicates().values.tolist())
+    month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
+                   7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
+    date_range = f"{month_names.get(int(months[0][1]))} {int(months[0][0])} - {month_names.get(int(months[-1][1]))} {int(months[-1][0])}"
+
+    # Count by canton
+    by_canton = recent.groupby("Erstinverkehrsetzung_Kanton").size().reset_index(name="count")
+    by_canton.columns = ["canton", "count"]
+
+    # Load geodata and merge
+    cantons = gpd.read_file(geojson_path)
+    merged = cantons.merge(by_canton, left_on="id", right_on="canton", how="left")
+    merged["count"] = merged["count"].fillna(0)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(14, 10))
+    vmax = merged["count"].max()
+    norm = mcolors.Normalize(vmin=0, vmax=vmax)
+    cmap = plt.cm.YlOrRd
+
+    merged.plot(column="count", ax=ax, cmap=cmap, edgecolor="white",
+                linewidth=1.2, legend=False, norm=norm)
+
+    for _, row in merged.iterrows():
+        centroid = row.geometry.centroid
+        label = f"{row['id']}\n{int(row['count'])}"
+        ax.annotate(label, (centroid.x, centroid.y), ha="center", va="center",
+                    fontsize=8, fontweight="bold",
+                    color="white" if row["count"] > vmax * 0.5 else "black")
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.02)
+    cbar.set_label("New Registrations", fontsize=11)
+
+    ax.set_title(f"Mercedes-Benz New Registrations by Canton\n{date_range}",
+                 fontsize=16, fontweight="bold", pad=15)
+    ax.set_axis_off()
+    add_attribution(fig)
+    save_chart(fig, "07_mercedes_canton_heatmap")
+
+
 def main():
     print("=== Generating Charts ===\n")
 
@@ -327,6 +432,7 @@ def main():
     chart_origin_over_time()
     chart_colors_over_time()
     chart_drive_type()
+    chart_canton_heatmap()
 
     print("\nDone.")
 
