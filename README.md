@@ -1,5 +1,7 @@
 # Swiss Vehicle Registration Analytics
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Automated analytics dashboard for Swiss new vehicle registrations, built from [ASTRA/IVZ Open Data](https://opendata.astra.admin.ch/ivzod/1000-Fahrzeuge_IVZ/1200-Neuzulassungen/).
 
 A GitHub Actions pipeline downloads raw registration data monthly, aggregates it, generates charts, and produces a delta report with MoM, YoY, and YTD comparisons.
@@ -8,58 +10,75 @@ A GitHub Actions pipeline downloads raw registration data monthly, aggregates it
 
 | Chart | Description |
 |-------|-------------|
-| [Yearly Registrations](charts/01_yearly_registrations.png) | Total new passenger car registrations per year |
-| [Powertrain Split](charts/02_powertrain_split.png) | Market share evolution: ICE vs BEV vs Hybrid |
-| [Top Brands](charts/03_top_brands.png) | Top 15 brands by total registrations |
-| [Manufacturer Origin](charts/04_manufacturer_origin.png) | Registrations by manufacturer country of origin |
-| [Colors](charts/05_colors.png) | Vehicle color distribution |
-| [Usage Type](charts/06_usage_type.png) | Private vs commercial registrations |
+| [Yearly Registrations](charts/01_yearly_registrations.svg) | Total new passenger car registrations per year (2016+) |
+| [Powertrain Mix](charts/02_powertrain_absolute.svg) | Absolute registrations by powertrain type (annual stacked bar) |
+| [Top Brands](charts/03_top_brands.svg) | Top 15 brands by total registrations |
+| [Manufacturer Origin](charts/04_manufacturer_origin.svg) | Registrations by manufacturer country of origin |
+| [Winners & Losers](charts/05_winners_losers.svg) | Top 5 brand gainers and losers vs prior year |
+| [Colors](charts/06_colors.svg) | Vehicle color distribution |
+| [Usage Type](charts/07_usage_type.svg) | Private vs commercial registrations |
+| [Drive Type](charts/08_drive_type.svg) | AWD/FWD/RWD share over time |
 
 ## How It Works
 
 ```
-download.py → process.py → chart.py → report.py
+download.py -> process.py -> chart.py -> report.py
 ```
 
-1. **Download** — fetches NEUZU.txt (current year) and archive files (2016-2025) from ASTRA
-2. **Process** — parses TSV files in chunks (memory-efficient), applies `mappings.yaml` classifications, outputs aggregated CSVs
-3. **Chart** — generates matplotlib PNGs with professional styling
-4. **Report** — produces a monthly delta report (MoM + YoY + YTD) in markdown
+1. **Download** -- fetches NEUZU.txt (current year) and archive files (2016-2025) from ASTRA
+2. **Process** -- parses TSV files with dtype optimization, applies `mappings.yaml` classifications, outputs aggregated CSVs
+3. **Chart** -- generates SVG charts with professional styling and dynamic attribution
+4. **Report** -- produces a monthly delta report (MoM + YoY + YTD) in markdown
 
 Runs automatically on the 5th of each month via GitHub Actions. Can also be triggered manually.
 
 ## Classification
 
 All classifications are driven by `mappings.yaml`:
-- Brand → country of origin (by heritage, not corporate HQ)
-- Fuel type normalization (German → English)
-- Color translation
-- Plate color → usage type (private/commercial)
+- **Brand origin** -- brand heritage (Fiat = Italy, even though Stellantis is Dutch-registered)
+- **Corporate group** -- parent company (Fiat = Stellantis, Audi = Volkswagen Group)
+- **Fuel type** -- normalized powertrain categories
+- **Colors** -- German to English translation
+- **Plate color** -- private/commercial/agricultural/military
+- **Drive type** -- AWD/FWD/RWD
 
-Unknown values go to an "Other" bucket and are logged to `warnings.log` for human review. Edit `mappings.yaml` to reclassify — no code changes needed.
+Unknown values go to an "Other" bucket and are logged to `warnings.log` for review. Edit `mappings.yaml` to reclassify -- no code changes needed.
 
 ## Local Development
 
 ```bash
-pip install -r requirements.txt
+# Install uv (https://docs.astral.sh/uv/)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-python scripts/download.py    # ~1GB total download
-python scripts/process.py     # ~2-5 min
-python scripts/chart.py       # ~10 sec
-python scripts/report.py      # instant
+# Install dependencies
+uv sync
+
+# Run pipeline
+uv run scripts/download.py    # ~1GB total download
+uv run scripts/process.py     # ~2-5 min
+uv run scripts/chart.py       # ~10 sec
+uv run scripts/report.py      # instant
 ```
 
-## Data
+## Data Source
 
-- **Source:** [ASTRA IVZ Open Data](https://opendata.astra.admin.ch/ivzod/1000-Fahrzeuge_IVZ/1200-Neuzulassungen/1210-Datensaetze_monatlich/)
-- **Coverage:** 2016-present (individual vehicle records, ~300k-400k/year)
-- **Scope:** Passenger cars (Personenwagen) only
-- **License:** Swiss Open Government Data — free to use with attribution
+**Source:** [ASTRA IVZ Open Data](https://opendata.astra.admin.ch/ivzod/1000-Fahrzeuge_IVZ/1200-Neuzulassungen/1210-Datensaetze_monatlich/)
+**Coverage:** 2016-present (~250k-320k passenger cars per year)
+**Scope:** Passenger cars (Personenwagen) only
 
-Raw data files (~100MB each) are not committed to this repo. Only aggregated CSVs (~100KB) and chart PNGs are tracked.
+Raw data files (~100MB each) are not committed to this repo. Only aggregated CSVs and SVG charts are tracked in git.
+
+## Data Attribution
+
+Vehicle registration data provided by the Swiss Federal Roads Office (ASTRA).
+
+> Datenquelle: Bundesamt fuer Strassen ASTRA
+> Source: Federal Roads Office FEDRO
+
+Data is published under Swiss Open Government Data (OGD) guidelines. Free to use for informational, research, and commercial purposes with attribution. The analytics and charts in this repository are for **informational purposes only** and do not constitute official statistics.
 
 ## License
 
 Code: [MIT](LICENSE)
 
-Data: [ASTRA/IVZ Open Data](https://www.astra.admin.ch/) — Swiss Federal Roads Office
+Data: Swiss Federal Roads Office (ASTRA) -- [OGD Terms](https://www.astra.admin.ch/)

@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Process raw ASTRA NEUZU data into aggregated CSVs.
 
-Uses chunked pandas processing to stay within 7GB RAM (GitHub Actions).
-Applies mappings.yaml for classification. Unknown values → "Other".
+Loads one file at a time with dtype optimization. Applies mappings.yaml
+for classification. Unknown values go to "Other" bucket.
 """
 
-import os
-import sys
 import yaml
 import pandas as pd
 from pathlib import Path
@@ -18,18 +16,16 @@ OUT_DIR = ROOT / "data" / "processed"
 MAPPINGS_FILE = ROOT / "mappings.yaml"
 WARNINGS_FILE = ROOT / "warnings.log"
 
-CHUNK_SIZE = 100_000
-
-# Only columns we need (by name, not position)
+# Columns we need (by name — position varies across years)
 USE_COLS = [
     "Fahrzeugart",
     "Marke",
     "Treibstoff",
-    "Farbe_1",
+    "Farbe",
     "Schildfarbe",
-    "Neuzulassungen_von",
-    "Neuzulassungen_bis",
-    "Antriebsart",  # 4x4 detection
+    "Antrieb",
+    "Erstinverkehrsetzung_Jahr",
+    "Erstinverkehrsetzung_Monat",
 ]
 
 
@@ -38,27 +34,31 @@ def load_mappings() -> dict:
         return yaml.safe_load(f)
 
 
-def safe_map(value: str, mapping: dict, default: str = "Other") -> str:
+def safe_map(value, mapping: dict, default: str = "Other") -> str:
     """Map a value using a dictionary, returning default if not found."""
     if pd.isna(value):
         return default
-    v = str(value).strip().upper()
-    # Try exact match first
+    v = str(value).strip()
+    # Try exact match first (case-sensitive for fuel types with special chars)
+    if v in mapping:
+        return mapping[v]
+    # Try case-insensitive for brand names
+    v_upper = v.upper()
     for key, val in mapping.items():
-        if str(key).upper() == v:
+        if str(key).upper() == v_upper:
             return val
     return default
 
 
 def find_raw_files() -> list[Path]:
-    """Find all NEUZU*.txt files in raw directory."""
+    """Find all NEUZU*.txt files in raw directory, sorted."""
     if not RAW_DIR.exists():
         print(f"ERROR: {RAW_DIR} does not exist. Run download.py first.")
-        sys.exit(1)
+        raise SystemExit(1)
     files = sorted(RAW_DIR.glob("NEUZU*.txt"))
     if not files:
         print(f"ERROR: No NEUZU*.txt files in {RAW_DIR}. Run download.py first.")
-        sys.exit(1)
+        raise SystemExit(1)
     return files
 
 
@@ -66,208 +66,197 @@ def detect_separator(filepath: Path) -> str:
     """Auto-detect TSV vs CSV."""
     with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         header = f.readline()
-    if "\t" in header:
-        return "\t"
-    return ","
+    return "\t" if "\t" in header else ","
 
 
 def process_file(filepath: Path, mappings: dict, warnings: set) -> dict:
-    """Process a single NEUZU file in chunks. Returns aggregation dicts."""
+    """Process a single NEUZU file. Returns aggregation dicts."""
     sep = detect_separator(filepath)
-    print(f"  Processing: {filepath.name} (sep={'TAB' if sep == chr(9) else 'COMMA'})")
+    print(f"  Processing: {filepath.name}")
 
-    # Check which of our desired columns actually exist
+    # Check which columns exist in this file
     with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         header_cols = [c.strip() for c in f.readline().split(sep)]
 
     available_cols = [c for c in USE_COLS if c in header_cols]
-    missing_cols = [c for c in USE_COLS if c not in header_cols]
-    if missing_cols:
-        print(f"    Note: missing columns: {missing_cols}")
+    missing = set(USE_COLS) - set(available_cols)
+    if missing:
+        print(f"    Missing columns: {missing}")
 
-    agg = {
-        "by_month": {},        # (year, month) → count
-        "by_fuel": {},         # fuel_type → count
-        "by_brand": {},        # brand → count
-        "by_origin": {},       # country → count
-        "by_continent": {},    # continent → count
-        "by_color": {},        # color → count
-        "by_usage": {},        # usage → count
-        "by_fuel_month": {},   # (year, month, fuel) → count
-        "by_4x4": {},          # (year, month, is_4x4) → count
-    }
-
-    brand_origin = mappings.get("brand_origin", {})
-    country_continent = mappings.get("country_continent", {})
-    fuel_types = mappings.get("fuel_types", {})
-    colors = mappings.get("colors", {})
-    plate_usage = mappings.get("plate_usage", {})
-
-    dtype_map = {c: "str" for c in available_cols}
-    rows_total = 0
+    # Load full file with dtype optimization
+    dtype_map = {c: "category" for c in available_cols if c != "Erstinverkehrsetzung_Jahr" and c != "Erstinverkehrsetzung_Monat"}
+    dtype_map.update({c: "Int16" for c in ["Erstinverkehrsetzung_Jahr", "Erstinverkehrsetzung_Monat"] if c in available_cols})
 
     try:
-        reader = pd.read_csv(
-            filepath,
-            sep=sep,
-            usecols=available_cols,
-            dtype=dtype_map,
-            chunksize=CHUNK_SIZE,
-            encoding="utf-8",
-            on_bad_lines="skip",
+        df = pd.read_csv(
+            filepath, sep=sep, usecols=available_cols, dtype=dtype_map,
+            encoding="utf-8", on_bad_lines="skip",
         )
     except Exception as e:
-        print(f"    ERROR reading {filepath.name}: {e}")
-        return agg
+        print(f"    ERROR: {e}")
+        return {}
 
-    for chunk in reader:
-        # Filter to Personenwagen only
-        if "Fahrzeugart" in chunk.columns:
-            chunk = chunk[chunk["Fahrzeugart"].str.contains("Personenwagen", case=False, na=False)]
+    # Filter to Personenwagen
+    if "Fahrzeugart" in df.columns:
+        df = df[df["Fahrzeugart"].astype(str).str.contains("Personenwagen", case=False, na=False)]
 
-        if chunk.empty:
-            continue
+    print(f"    Personenwagen: {len(df):,}")
+    if df.empty:
+        return {}
 
-        rows_total += len(chunk)
+    agg = {}
+    m = mappings
 
-        # Extract year/month from registration period
-        if "Neuzulassungen_von" in chunk.columns:
-            dates = pd.to_datetime(chunk["Neuzulassungen_von"], errors="coerce", dayfirst=True)
-            chunk["_year"] = dates.dt.year
-            chunk["_month"] = dates.dt.month
-        else:
-            chunk["_year"] = None
-            chunk["_month"] = None
+    # Year/month
+    if "Erstinverkehrsetzung_Jahr" in df.columns and "Erstinverkehrsetzung_Monat" in df.columns:
+        df["_year"] = df["Erstinverkehrsetzung_Jahr"]
+        df["_month"] = df["Erstinverkehrsetzung_Monat"]
+    else:
+        df["_year"] = pd.NA
+        df["_month"] = pd.NA
 
+    # Fuel type
+    if "Treibstoff" in df.columns:
+        df["_fuel"] = df["Treibstoff"].apply(lambda x: safe_map(x, m.get("fuel_types", {})))
+        for v in df["Treibstoff"].dropna().unique():
+            if safe_map(v, m.get("fuel_types", {})) == "Other" and str(v).strip():
+                warnings.add(f"fuel:{v}")
+
+    # Brand
+    if "Marke" in df.columns:
+        df["_brand"] = df["Marke"].astype(str).str.strip()
+        df["_origin"] = df["Marke"].apply(lambda x: safe_map(x, m.get("brand_origin", {})))
+        df["_group"] = df["Marke"].apply(lambda x: safe_map(x, m.get("brand_group", {})))
+        df["_continent"] = df["_origin"].apply(lambda x: safe_map(x, m.get("country_continent", {})))
+        for v in df["Marke"].dropna().unique():
+            if safe_map(v, m.get("brand_origin", {})) == "Other" and str(v).strip():
+                warnings.add(f"brand:{v}")
+
+    # Color
+    if "Farbe" in df.columns:
+        df["_color"] = df["Farbe"].apply(lambda x: safe_map(x, m.get("colors", {})))
+        for v in df["Farbe"].dropna().unique():
+            if safe_map(v, m.get("colors", {})) == "Other" and str(v).strip():
+                warnings.add(f"color:{v}")
+
+    # Usage (plate color)
+    if "Schildfarbe" in df.columns:
+        df["_usage"] = df["Schildfarbe"].apply(lambda x: safe_map(x, m.get("plate_usage", {})))
+
+    # Drive type (4x4)
+    if "Antrieb" in df.columns:
+        df["_drive"] = df["Antrieb"].apply(lambda x: safe_map(x, m.get("drive_types", {})))
+
+    # --- Aggregations ---
+    valid = df.dropna(subset=["_year", "_month"])
+
+    if not valid.empty:
         # Monthly totals
-        for (y, m), grp in chunk.groupby(["_year", "_month"]):
-            if pd.notna(y) and pd.notna(m):
-                key = (int(y), int(m))
-                agg["by_month"][key] = agg["by_month"].get(key, 0) + len(grp)
+        agg["monthly_totals"] = valid.groupby(["_year", "_month"]).size().reset_index(name="count")
 
-        # Fuel type
-        if "Treibstoff" in chunk.columns:
-            for raw_fuel, grp in chunk.groupby("Treibstoff"):
-                fuel = safe_map(raw_fuel, fuel_types)
-                if fuel == "Other" and pd.notna(raw_fuel) and str(raw_fuel).strip():
-                    warnings.add(f"fuel:{raw_fuel}")
-                agg["by_fuel"][fuel] = agg["by_fuel"].get(fuel, 0) + len(grp)
+        # Fuel by month
+        if "_fuel" in valid.columns:
+            agg["fuel_by_month"] = valid.groupby(["_year", "_month", "_fuel"]).size().reset_index(name="count")
 
-                # Fuel by month
-                for (y, m), sub in grp.groupby(["_year", "_month"]):
-                    if pd.notna(y) and pd.notna(m):
-                        key = (int(y), int(m), fuel)
-                        agg["by_fuel_month"][key] = agg["by_fuel_month"].get(key, 0) + len(sub)
+        # Brand by year (for winners/losers)
+        if "_brand" in valid.columns:
+            agg["brand_by_year"] = valid.groupby(["_year", "_brand"]).size().reset_index(name="count")
 
-        # Brand + origin
-        if "Marke" in chunk.columns:
-            for raw_brand, grp in chunk.groupby("Marke"):
-                brand = str(raw_brand).strip() if pd.notna(raw_brand) else "Other"
-                country = safe_map(raw_brand, brand_origin)
-                continent = safe_map(country, country_continent)
-                if country == "Other" and brand != "Other" and brand:
-                    warnings.add(f"brand:{brand}")
+    # Totals (all rows, not just date-valid)
+    if "_fuel" in df.columns:
+        agg["fuel_totals"] = df["_fuel"].value_counts().reset_index()
+        agg["fuel_totals"].columns = ["fuel_type", "count"]
 
-                agg["by_brand"][brand] = agg["by_brand"].get(brand, 0) + len(grp)
-                agg["by_origin"][country] = agg["by_origin"].get(country, 0) + len(grp)
-                agg["by_continent"][continent] = agg["by_continent"].get(continent, 0) + len(grp)
+    if "_brand" in df.columns:
+        agg["brand_totals"] = df["_brand"].value_counts().reset_index()
+        agg["brand_totals"].columns = ["brand", "count"]
 
-        # Color
-        if "Farbe_1" in chunk.columns:
-            for raw_color, grp in chunk.groupby("Farbe_1"):
-                color = safe_map(raw_color, colors)
-                if color == "Other" and pd.notna(raw_color) and str(raw_color).strip():
-                    warnings.add(f"color:{raw_color}")
-                agg["by_color"][color] = agg["by_color"].get(color, 0) + len(grp)
+    if "_origin" in df.columns:
+        agg["origin_totals"] = df["_origin"].value_counts().reset_index()
+        agg["origin_totals"].columns = ["country", "count"]
 
-        # Usage (plate color)
-        if "Schildfarbe" in chunk.columns:
-            for raw_plate, grp in chunk.groupby("Schildfarbe"):
-                usage = safe_map(raw_plate, plate_usage)
-                if usage == "Other" and pd.notna(raw_plate) and str(raw_plate).strip():
-                    warnings.add(f"plate:{raw_plate}")
-                agg["by_usage"][usage] = agg["by_usage"].get(usage, 0) + len(grp)
+    if "_continent" in df.columns:
+        agg["continent_totals"] = df["_continent"].value_counts().reset_index()
+        agg["continent_totals"].columns = ["continent", "count"]
 
-        # 4x4 detection
-        if "Antriebsart" in chunk.columns:
-            for (y, m), grp in chunk.groupby(["_year", "_month"]):
-                if pd.notna(y) and pd.notna(m):
-                    key_4x4 = (int(y), int(m), True)
-                    key_other = (int(y), int(m), False)
-                    is_4x4 = grp["Antriebsart"].str.contains("allrad|4x4|4WD|AWD", case=False, na=False)
-                    agg["by_4x4"][key_4x4] = agg["by_4x4"].get(key_4x4, 0) + int(is_4x4.sum())
-                    agg["by_4x4"][key_other] = agg["by_4x4"].get(key_other, 0) + int((~is_4x4).sum())
+    if "_group" in df.columns:
+        agg["group_totals"] = df["_group"].value_counts().reset_index()
+        agg["group_totals"].columns = ["group", "count"]
 
-    print(f"    Personenwagen rows: {rows_total:,}")
+    if "_color" in df.columns:
+        agg["color_totals"] = df["_color"].value_counts().reset_index()
+        agg["color_totals"].columns = ["color", "count"]
+
+    if "_usage" in df.columns:
+        agg["usage_totals"] = df["_usage"].value_counts().reset_index()
+        agg["usage_totals"].columns = ["usage", "count"]
+
+    if "_drive" in df.columns:
+        agg["drive_totals"] = df["_drive"].value_counts().reset_index()
+        agg["drive_totals"].columns = ["drive", "count"]
+
+        # Drive by month
+        if not valid.empty:
+            agg["drive_by_month"] = valid.groupby(["_year", "_month", "_drive"]).size().reset_index(name="count")
+
     return agg
 
 
 def merge_aggs(total: dict, new: dict) -> dict:
-    """Merge two aggregation dicts."""
-    for key in new:
-        if key not in total:
-            total[key] = {}
-        for k, v in new[key].items():
-            total[key][k] = total[key].get(k, 0) + v
+    """Merge two aggregation dicts by concatenating DataFrames."""
+    for key, df in new.items():
+        if key in total:
+            total[key] = pd.concat([total[key], df], ignore_index=True)
+        else:
+            total[key] = df
     return total
 
 
-def save_csvs(agg: dict):
-    """Save aggregated data to CSV files."""
+def consolidate_and_save(agg: dict):
+    """Consolidate merged DataFrames and save to CSV."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Monthly totals
-    rows = [{"year": k[0], "month": k[1], "count": v} for k, v in sorted(agg["by_month"].items())]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "monthly_totals.csv", index=False)
-
-    # Fuel totals
-    rows = [{"fuel_type": k, "count": v} for k, v in sorted(agg["by_fuel"].items(), key=lambda x: -x[1])]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "fuel_totals.csv", index=False)
+    # Monthly totals — sum duplicates
+    if "monthly_totals" in agg:
+        df = agg["monthly_totals"].groupby(["_year", "_month"])["count"].sum().reset_index()
+        df.columns = ["year", "month", "count"]
+        df = df.sort_values(["year", "month"])
+        df.to_csv(OUT_DIR / "monthly_totals.csv", index=False)
 
     # Fuel by month
-    rows = [{"year": k[0], "month": k[1], "fuel_type": k[2], "count": v}
-            for k, v in sorted(agg["by_fuel_month"].items())]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "fuel_by_month.csv", index=False)
+    if "fuel_by_month" in agg:
+        df = agg["fuel_by_month"].groupby(["_year", "_month", "_fuel"])["count"].sum().reset_index()
+        df.columns = ["year", "month", "fuel_type", "count"]
+        df = df.sort_values(["year", "month", "fuel_type"])
+        df.to_csv(OUT_DIR / "fuel_by_month.csv", index=False)
 
-    # Brand totals
-    rows = [{"brand": k, "count": v} for k, v in sorted(agg["by_brand"].items(), key=lambda x: -x[1])]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "brand_totals.csv", index=False)
+    # Brand by year
+    if "brand_by_year" in agg:
+        df = agg["brand_by_year"].groupby(["_year", "_brand"])["count"].sum().reset_index()
+        df.columns = ["year", "brand", "count"]
+        df = df.sort_values(["year", "brand"])
+        df.to_csv(OUT_DIR / "brand_by_year.csv", index=False)
 
-    # Origin totals
-    rows = [{"country": k, "count": v} for k, v in sorted(agg["by_origin"].items(), key=lambda x: -x[1])]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "origin_totals.csv", index=False)
+    # Simple totals — group and sum
+    for name in ["fuel_totals", "brand_totals", "origin_totals", "continent_totals",
+                  "group_totals", "color_totals", "usage_totals", "drive_totals"]:
+        if name in agg:
+            col = agg[name].columns[0]
+            df = agg[name].groupby(col)["count"].sum().reset_index().sort_values("count", ascending=False)
+            df.to_csv(OUT_DIR / f"{name}.csv", index=False)
 
-    # Continent totals
-    rows = [{"continent": k, "count": v} for k, v in sorted(agg["by_continent"].items(), key=lambda x: -x[1])]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "continent_totals.csv", index=False)
-
-    # Color totals
-    rows = [{"color": k, "count": v} for k, v in sorted(agg["by_color"].items(), key=lambda x: -x[1])]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "color_totals.csv", index=False)
-
-    # Usage totals
-    rows = [{"usage": k, "count": v} for k, v in sorted(agg["by_usage"].items(), key=lambda x: -x[1])]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "usage_totals.csv", index=False)
-
-    # 4x4 by month
-    rows = [{"year": k[0], "month": k[1], "is_4x4": k[2], "count": v}
-            for k, v in sorted(agg["by_4x4"].items())]
-    if rows:
-        pd.DataFrame(rows).to_csv(OUT_DIR / "4x4_by_month.csv", index=False)
+    # Drive by month
+    if "drive_by_month" in agg:
+        df = agg["drive_by_month"].groupby(["_year", "_month", "_drive"])["count"].sum().reset_index()
+        df.columns = ["year", "month", "drive", "count"]
+        df = df.sort_values(["year", "month", "drive"])
+        df.to_csv(OUT_DIR / "drive_by_month.csv", index=False)
 
     print(f"\nSaved CSVs to {OUT_DIR}/")
 
 
 def save_warnings(warnings: set):
-    """Save unmapped values to warnings.log for human review."""
+    """Save unmapped values to warnings.log."""
     if not warnings:
         print("No unmapped values.")
         return
@@ -276,22 +265,21 @@ def save_warnings(warnings: set):
         f.write("# Add these to mappings.yaml to classify them properly.\n\n")
         for w in sorted(warnings):
             f.write(f"{w}\n")
-    print(f"\nWarnings: {len(warnings)} unmapped values → {WARNINGS_FILE}")
+    print(f"\nWarnings: {len(warnings)} unmapped values -> {WARNINGS_FILE}")
 
 
 def main():
     print("=== ASTRA Data Processing ===\n")
-
     mappings = load_mappings()
     files = find_raw_files()
-    warnings = set()
-    total_agg = {}
+    warnings: set = set()
+    total_agg: dict = {}
 
     for f in files:
         agg = process_file(f, mappings, warnings)
         total_agg = merge_aggs(total_agg, agg)
 
-    save_csvs(total_agg)
+    consolidate_and_save(total_agg)
     save_warnings(warnings)
     print("\nDone.")
 

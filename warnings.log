@@ -1,4 +1,4 @@
-# Unmapped values — 2026-03-07 13:30
+# Unmapped values — 2026-03-07 14:38
 # Add these to mappings.yaml to classify them properly.
 
 brand:AB KAWASAKI
@@ -83,19 +83,5 @@ brand:VOLVO-T
 brand:VW-MAN
 brand:WIESMANN
 brand:YAMAHA
-fuel:Alkohol (Ethanol)
-fuel:Benzin / Alkohol (Ethanol)
-fuel:Benzin / Elektrisch
-fuel:Benzin/Alkohol (Ethanol)
-fuel:Diesel / Elektrisch
-fuel:Elektrisch mit RE
-fuel:Elektrisch mit RE (Range Extender)
-fuel:Erdgas (CNG)
-fuel:Erdgas (CNG) / Benzin
-fuel:Erdgas / Benzin (CNG)
-fuel:Flüssiggas (LPG)
-fuel:Flüssiggas (LPG) / Benzin
-fuel:Wasserstoff / Elektrisch
-plate:Braun, Ausnahmefahrzeug
-plate:Schwarz, Armeefahrzeug
-plate:Weiss (Motorwagen)
+color:Effektlack
+color:unbekannt

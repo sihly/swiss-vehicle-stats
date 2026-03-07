@@ -22,22 +22,26 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: uv sync --frozen
+        env:
+          UV_SYSTEM_PYTHON: "1"
 
       - name: Download data
-        run: python scripts/download.py
+        run: uv run scripts/download.py
 
       - name: Process data
-        run: python scripts/process.py
+        run: uv run scripts/process.py
 
       - name: Generate charts
-        run: python scripts/chart.py
+        run: uv run scripts/chart.py
 
       - name: Generate report
-        run: python scripts/report.py
+        run: uv run scripts/report.py
 
       - name: Commit and push
         run: |
