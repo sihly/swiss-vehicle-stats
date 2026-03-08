@@ -96,7 +96,7 @@ def chart_yearly_registrations():
                     textcoords="offset points", xytext=(0, 12),
                     ha="center", fontsize=8, fontweight="bold")
 
-    style_chart(ax, "New Passenger Car Registrations in Switzerland", ylabel="Registrations")
+    style_chart(ax, "New Passenger Car Registrations in Switzerland\n(Fahrzeugart = Personenwagen)", ylabel="Registrations")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
     ax.set_xlim(yearly["year"].min() - 0.5, yearly["year"].max() + 0.5)
     add_attribution(fig)
@@ -144,10 +144,7 @@ def chart_brand_rankings():
     df = pd.read_csv(path)
     df = df[df["year"] >= 2016]
 
-    # Get top 10 brands by total volume across all years
     top_brands = df.groupby("brand")["count"].sum().nlargest(10).index.tolist()
-
-    # Calculate rank per year
     ranked = df[df["brand"].isin(top_brands)].copy()
     ranked["rank"] = ranked.groupby("year")["count"].rank(ascending=False, method="min")
 
@@ -158,7 +155,6 @@ def chart_brand_rankings():
         color = COLORS[i % len(COLORS)]
         ax.plot(brand_data["year"], brand_data["rank"], marker="o", linewidth=2.5,
                 label=brand, color=color, markersize=7, zorder=3)
-        # Label last point
         if not brand_data.empty:
             last = brand_data.iloc[-1]
             ax.annotate(brand, (last["year"], last["rank"]),
@@ -176,249 +172,6 @@ def chart_brand_rankings():
     save_chart(fig, "03_brand_rankings")
 
 
-def chart_origin_over_time():
-    """Manufacturer origin share over time (stacked area)."""
-    path = DATA_DIR / "brand_by_year.csv"
-    if not path.exists():
-        print("  Skip: origin over time (no data)")
-        return
-
-    # Need to map brands to origins using mappings
-    import yaml
-    with open(ROOT / "mappings.yaml") as f:
-        mappings = yaml.safe_load(f)
-
-    brand_origin = mappings.get("brand_origin", {})
-    country_continent = mappings.get("country_continent", {})
-
-    df = pd.read_csv(path)
-    df = df[df["year"] >= 2016]
-
-    # Map brand to country
-    def get_origin(brand):
-        b = str(brand).strip().upper()
-        for key, val in brand_origin.items():
-            if str(key).upper() == b:
-                return val
-        return "Other"
-
-    df["country"] = df["brand"].apply(get_origin)
-
-    # Aggregate by year + country
-    by_country = df.groupby(["year", "country"])["count"].sum().reset_index()
-
-    # Get top countries by total volume
-    top_countries = by_country.groupby("country")["count"].sum().nlargest(8).index.tolist()
-    by_country.loc[~by_country["country"].isin(top_countries), "country"] = "Other"
-    by_country = by_country.groupby(["year", "country"])["count"].sum().reset_index()
-
-    # Calculate share
-    totals = by_country.groupby("year")["count"].sum()
-    pivot = by_country.pivot(index="year", columns="country", values="count").fillna(0)
-    pct = pivot.div(totals, axis=0) * 100
-
-    # Order by average share
-    order = pct.mean().sort_values(ascending=False).index.tolist()
-    pct = pct[order]
-
-    country_colors = {
-        "Germany": "#1a1a1a", "Japan": "#dc2626", "France": "#2563eb",
-        "South Korea": "#16a34a", "USA": "#f59e0b", "UK": "#8b5cf6",
-        "Czech Republic": "#ec4899", "Italy": "#f97316", "China": "#e11d48",
-        "Romania": "#14b8a6", "Sweden": "#6366f1", "Spain": "#84cc16",
-        "India": "#06b6d4", "Other": "#d1d5db",
-    }
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    ax.stackplot(pct.index, *[pct[c] for c in pct.columns],
-                 labels=pct.columns,
-                 colors=[country_colors.get(c, "#999") for c in pct.columns],
-                 alpha=0.85)
-
-    style_chart(ax, "Market Share by Manufacturer Origin", ylabel="Share (%)")
-    ax.set_ylim(0, 100)
-    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9, frameon=False)
-    ax.set_xlabel("")
-    add_attribution(fig)
-    save_chart(fig, "04_origin_over_time")
-
-
-def chart_colors_over_time():
-    """Color distribution over time (stacked area)."""
-    # Need to process from brand_by_year equivalent but for colors
-    # We have color_totals but not color_by_year — check if we have the monthly data
-    # Actually we need to re-derive this. For now use what we have.
-    # Let's check if we can build from the processed data
-    path = DATA_DIR / "color_totals.csv"
-    if not path.exists():
-        print("  Skip: colors (no data)")
-        return
-
-    # We only have totals, not by year. Show as horizontal bar for now,
-    # and add a TODO for color_by_year in process.py
-    df = pd.read_csv(path)
-    df = df[df["color"] != "Other"]
-    total = df["count"].sum()
-    df["pct"] = df["count"] / total * 100
-
-    color_map = {
-        "Grey": "#808080", "White": "#d4d4d4", "Black": "#1a1a1a",
-        "Blue": "#2563eb", "Red": "#dc2626", "Green": "#16a34a",
-        "Yellow": "#eab308", "Orange": "#f97316", "Brown": "#8B4513",
-        "Silver": "#c0c0c0", "Beige": "#d4a574", "Purple": "#8b5cf6",
-        "Multicolor": "#ff69b4", "Gold": "#daa520",
-    }
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    bars = ax.barh(df["color"][::-1], df["pct"][::-1],
-                   color=[color_map.get(c, "#999") for c in df["color"][::-1]],
-                   height=0.7, edgecolor="white", linewidth=0.5)
-
-    for bar, val in zip(bars, df["pct"][::-1]):
-        ax.text(bar.get_width() + 0.3, bar.get_y() + bar.get_height() / 2,
-                f"{val:.1f}%", ha="left", va="center", fontsize=9)
-
-    style_chart(ax, "Vehicle Color Distribution (2016-present)", xlabel="Share (%)")
-    add_attribution(fig)
-    save_chart(fig, "05_colors")
-
-
-def chart_drive_type():
-    """AWD vs FWD vs RWD share over time."""
-    path = DATA_DIR / "drive_by_month.csv"
-    if not path.exists():
-        print("  Skip: drive type (no data)")
-        return
-
-    df = pd.read_csv(path)
-    yearly = df.groupby(["year", "drive"])["count"].sum().reset_index()
-    yearly = yearly[yearly["year"] >= 2016]
-
-    pivot = yearly.pivot(index="year", columns="drive", values="count").fillna(0)
-    pct = pivot.div(pivot.sum(axis=1), axis=0) * 100
-
-    drive_colors = {"AWD": "#2563eb", "FWD": "#f59e0b", "RWD": "#dc2626", "Other": "#d1d5db"}
-    order = [c for c in ["AWD", "FWD", "RWD", "Other"] if c in pct.columns]
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    ax.stackplot(pct.index, *[pct[c] for c in order],
-                 labels=order,
-                 colors=[drive_colors.get(c, "#999") for c in order],
-                 alpha=0.85)
-
-    style_chart(ax, "Drive Type Share Over Time", ylabel="Share (%)")
-    ax.set_ylim(0, 100)
-    ax.legend(loc="upper right", fontsize=10, frameon=False)
-    ax.set_xlabel("")
-    add_attribution(fig)
-    save_chart(fig, "06_drive_type")
-
-
-def chart_canton_heatmap():
-    """[Experimental] Geographic heatmap of registrations by canton.
-
-    Currently hardcoded to Mercedes-Benz, last 3 months of available data.
-    Requires geopandas and data/ch-cantons.geojson.
-    """
-    geojson_path = ROOT / "data" / "ch-cantons.geojson"
-    if not geojson_path.exists():
-        print("  Skip: canton heatmap (no ch-cantons.geojson)")
-        return
-
-    try:
-        import geopandas as gpd
-        import matplotlib.colors as mcolors
-    except ImportError:
-        print("  Skip: canton heatmap (geopandas not installed)")
-        return
-
-    # Find the two most recent raw files to cover ~3 months
-    raw_dir = ROOT / "data" / "raw"
-    if not raw_dir.exists():
-        print("  Skip: canton heatmap (no raw data)")
-        return
-
-    raw_files = sorted(raw_dir.glob("NEUZU*.txt"))
-    if not raw_files:
-        print("  Skip: canton heatmap (no raw files)")
-        return
-
-    # Load last 2 files (current year + previous year archive)
-    cols = ["Fahrzeugart", "Marke", "Erstinverkehrsetzung_Kanton",
-            "Erstinverkehrsetzung_Jahr", "Erstinverkehrsetzung_Monat"]
-    dfs = []
-    for f in raw_files[-2:]:
-        available = []
-        with open(f, "r", encoding="utf-8", errors="replace") as fh:
-            header = [c.strip() for c in fh.readline().split("\t")]
-        available = [c for c in cols if c in header]
-        if len(available) < len(cols):
-            continue
-        df = pd.read_csv(f, sep="\t", usecols=available, dtype=str)
-        dfs.append(df)
-
-    if not dfs:
-        print("  Skip: canton heatmap (could not read raw files)")
-        return
-
-    df = pd.concat(dfs, ignore_index=True)
-    df = df[df["Fahrzeugart"].str.contains("Personenwagen", case=False, na=False)]
-    df = df[df["Marke"].str.contains("MERCEDES", case=False, na=False)]
-    df["year"] = pd.to_numeric(df["Erstinverkehrsetzung_Jahr"], errors="coerce")
-    df["month"] = pd.to_numeric(df["Erstinverkehrsetzung_Monat"], errors="coerce")
-
-    # Find last 3 months in data
-    df["ym"] = df["year"] * 100 + df["month"]
-    last_3 = sorted(df["ym"].dropna().unique())[-3:]
-    recent = df[df["ym"].isin(last_3)]
-
-    if recent.empty:
-        print("  Skip: canton heatmap (no recent data)")
-        return
-
-    # Determine date range for title
-    months = sorted(recent[["year", "month"]].drop_duplicates().values.tolist())
-    month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
-                   7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
-    date_range = f"{month_names.get(int(months[0][1]))} {int(months[0][0])} - {month_names.get(int(months[-1][1]))} {int(months[-1][0])}"
-
-    # Count by canton
-    by_canton = recent.groupby("Erstinverkehrsetzung_Kanton").size().reset_index(name="count")
-    by_canton.columns = ["canton", "count"]
-
-    # Load geodata and merge
-    cantons = gpd.read_file(geojson_path)
-    merged = cantons.merge(by_canton, left_on="id", right_on="canton", how="left")
-    merged["count"] = merged["count"].fillna(0)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(14, 10))
-    vmax = merged["count"].max()
-    norm = mcolors.Normalize(vmin=0, vmax=vmax)
-    cmap = plt.cm.YlOrRd
-
-    merged.plot(column="count", ax=ax, cmap=cmap, edgecolor="white",
-                linewidth=1.2, legend=False, norm=norm)
-
-    for _, row in merged.iterrows():
-        centroid = row.geometry.centroid
-        label = f"{row['id']}\n{int(row['count'])}"
-        ax.annotate(label, (centroid.x, centroid.y), ha="center", va="center",
-                    fontsize=8, fontweight="bold",
-                    color="white" if row["count"] > vmax * 0.5 else "black")
-
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.02)
-    cbar.set_label("New Registrations", fontsize=11)
-
-    ax.set_title(f"Mercedes-Benz New Registrations by Canton\n{date_range}",
-                 fontsize=16, fontweight="bold", pad=15)
-    ax.set_axis_off()
-    add_attribution(fig)
-    save_chart(fig, "07_mercedes_canton_heatmap")
-
-
 def main():
     print("=== Generating Charts ===\n")
 
@@ -429,10 +182,6 @@ def main():
     chart_yearly_registrations()
     chart_powertrain_absolute()
     chart_brand_rankings()
-    chart_origin_over_time()
-    chart_colors_over_time()
-    chart_drive_type()
-    chart_canton_heatmap()
 
     print("\nDone.")
 

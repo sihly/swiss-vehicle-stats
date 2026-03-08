@@ -6,13 +6,19 @@ Automated analytics dashboard for Swiss new vehicle registrations, built from [A
 
 A GitHub Actions pipeline downloads raw registration data monthly, aggregates it, generates charts, and produces a delta report with MoM, YoY, and YTD comparisons.
 
+## Definitions
+
+- **Scope:** `Fahrzeugart = Personenwagen` only (passenger cars). Excludes vans (Lieferwagen), trucks (Lastwagen), motorcycles (Motorrad), buses, tractors, and all other vehicle types.
+- **EV:** BEV + PHEV + FCEV (Treibstoff: Elektrisch, Benzin/Elektrisch, Wasserstoff/Elektrisch, Elektrisch mit RE)
+- **BEV:** Fully electric only (Treibstoff: Elektrisch, Elektrisch mit RE)
+
 ---
 
 ## Dashboard
 
 ### New Registrations Trend
 
-Total passenger car registrations per year since 2016. The COVID-19 impact in 2020 is clearly visible, with the market not yet recovering to pre-pandemic levels.
+Total passenger car (Personenwagen) registrations per year since 2016. The COVID-19 impact in 2020 is clearly visible, with the market not yet recovering to pre-pandemic levels.
 
 ![Yearly Registrations](charts/01_yearly_registrations.png)
 
@@ -28,29 +34,27 @@ Position changes of the top 10 brands. Watch for brands climbing or falling thro
 
 ![Brand Rankings](charts/03_brand_rankings.png)
 
-### Manufacturer Origin
+---
 
-Market share by country of origin over time. Shows the evolution of German, Japanese, South Korean, and emerging Chinese manufacturer presence in Switzerland.
+## EV Analytics
 
-![Origin Over Time](charts/04_origin_over_time.png)
+### The EV Wave
 
-### Vehicle Colors
+BEV + PHEV share of new passenger car registrations by canton, animated from Jan 2016 to Feb 2026. Shows the electrification wave spreading across Switzerland.
 
-Color distribution across all registrations since 2016. Grey, white, and black dominate — accounting for over 75% of all new cars.
+![EV Wave](charts/ev_wave.gif)
 
-![Colors](charts/05_colors.png)
+### The BEV Race
 
-### Drive Type (AWD/FWD/RWD)
+Top 10 fully electric (BEV only) brands by trailing 12-month registrations. Watch Tesla's explosive rise and the competitive response.
 
-Switzerland's preference for all-wheel drive, likely driven by alpine geography and weather conditions.
+![EV Race](charts/ev_race.gif)
 
-![Drive Type](charts/06_drive_type.png)
+### Geography of EV Taste
 
-### Geographic Distribution (Experimental)
+Location Quotient for top 6 BEV brands — where each brand over/underperforms vs the national average. LQ > 1.0 means overrepresented in that canton.
 
-Mercedes-Benz new registrations by canton for the most recent 3 months. An experiment in GIS-based charting -- to be extended to other brands and time ranges.
-
-![Mercedes Canton Heatmap](charts/07_mercedes_canton_heatmap.png)
+![EV Taste](charts/ev_taste_lq.png)
 
 ---
 
