@@ -6,29 +6,55 @@
 brand_origin:
   # German
   AUDI: Germany
+  AUDI-NSU: Germany
   BMW: Germany
+  BMW/ALPINA: Germany
+  ALPINA: Germany
   MERCEDES-BENZ: Germany
   MERCEDES BENZ: Germany
+  MERCEDES-AMG: Germany
+  MERCEDES-ADRIA: Germany
+  MERCEDES-BENZ-HYMER: Germany
+  MERCEDES-BENZ-WEINSBERG: Germany
   VOLKSWAGEN: Germany
   VW: Germany
+  VW-MAN: Germany
   PORSCHE: Germany
   OPEL: Germany
+  OPEL-DANGEL: Germany
   SMART: Germany
   MINI: Germany
   MAYBACH: Germany
   MAN: Germany
+  NSU: Germany
+  WIESMANN: Germany
+  ABT: Germany
+  QUATTRO: Germany
+  BORGWARD: Germany
+  DAIMLER: Germany
+  KOENIG: Germany
 
   # French
   PEUGEOT: France
+  PEUGEOT-ALKO: France
+  PEUGEOT-DANGEL: France
   RENAULT: France
+  RENAULT-SPORT: France
   CITROEN: France
   CITROËN: France
+  CITROEN-DANGEL: France
+  CITROEN-POESSL: France
   DS: France
   ALPINE: France
   BUGATTI: France
+  PGO: France
+  FACEL-VEGA: France
+  SECMA: France
+  ARIES: France
 
   # Italian
   FIAT: Italy
+  FIAT-ABARTH: Italy
   ALFA ROMEO: Italy
   FERRARI: Italy
   LAMBORGHINI: Italy
@@ -36,12 +62,18 @@ brand_origin:
   LANCIA: Italy
   ABARTH: Italy
   IVECO: Italy
+  PAGANI: Italy
+  DALLARA: Italy
+  PININFARINA: Italy
+  TAZZARI: Italy
+  FAVERO: Italy
 
   # Japanese
   TOYOTA: Japan
   HONDA: Japan
   NISSAN: Japan
   MAZDA: Japan
+  TOYO-KOGYO: Japan
   SUBARU: Japan
   SUZUKI: Japan
   MITSUBISHI: Japan
@@ -49,15 +81,20 @@ brand_origin:
   INFINITI: Japan
   ISUZU: Japan
   DAIHATSU: Japan
+  AB KAWASAKI: Japan
+  YAMAHA: Japan
 
   # South Korean
   HYUNDAI: South Korea
   KIA: South Korea
   GENESIS: South Korea
   SSANGYONG: South Korea
+  KG MOBILITY: South Korea
 
   # American
   FORD: USA
+  FORD ECONOLINE: USA
+  FORD-CNG-TECHNIK: USA
   CHEVROLET: USA
   JEEP: USA
   DODGE: USA
@@ -71,6 +108,13 @@ brand_origin:
   CORVETTE: USA
   RIVIAN: USA
   LUCID: USA
+  HUMMER: USA
+  FISKER: USA
+  EDSEL: USA
+  PLYMOUTH: USA
+  PONTIAC: USA
+  MUSTANG: USA
+  CLUB CAR: USA
 
   # British
   LAND ROVER: UK
@@ -80,13 +124,22 @@ brand_origin:
   ROLLS ROYCE: UK
   ASTON MARTIN: UK
   MCLAREN: UK
+  MC LAREN: UK
   LOTUS: UK
   CATERHAM: UK
+  MORGAN: UK
+  RELIANT: UK
+  VAUXHALL: UK
+  ROVER: UK
+  ALVIS: UK
+  AC-COBRA: UK
+  RADICAL SPORTSCARS: UK
 
   # Swedish
   VOLVO: Sweden
   POLESTAR: Sweden
   KOENIGSEGG: Sweden
+  SAAB: Sweden
 
   # Czech
   SKODA: Czech Republic
@@ -105,6 +158,7 @@ brand_origin:
   LYNK: China
   MAXUS: China
   DONGFENG: China
+  DFSK: China
   GEELY: China
   GREAT WALL: China
   GWM: China
@@ -121,6 +175,10 @@ brand_origin:
   VOYAH: China
   WULING: China
   MG: China
+  BAIC: China
+  SKYWELL: China
+  JIALING: China
+  JIAYUAN: China
 
   # Indian
   TATA: India
@@ -132,12 +190,52 @@ brand_origin:
   # Malaysian
   PROTON: Malaysia
 
+  # Croatian
+  RIMAC: Croatia
+
+  # Dutch
+  DONKERVOORT: Netherlands
+
+  # Austrian
+  KTM: Austria
+
+  # Russian
+  LADA: Russia
+
+  # Swiss
+  KLINGLER: Switzerland
+  ROOS: Switzerland
+  STIMBO: Switzerland
+  MICRO COMPACT CAR: Switzerland
+
+  # Italian (motorycles/off-road crossover)
+  SWM: Italy
+  NIBBI: Italy
+
+  # Other/misc
+  INEOS: UK
+  PUMA: Argentina
+  PRINOTH: Italy
+  CUSHMAN: USA
+  TRIUMPH: UK
+  AUSTIN: UK
+  BRP: Canada
+  CAN-AM: Canada
+  FFW: Switzerland
+  JUMBOLINO: Switzerland
+  TOURNEAU LE: France
+  Avantier: Germany
+  "UEBRIGE (SIEHE TYP)": Other
+  VOLVO-T: Sweden
+
 # Brand → corporate group
 brand_group:
   # Volkswagen Group
   VOLKSWAGEN: Volkswagen Group
   VW: Volkswagen Group
+  VW-MAN: Volkswagen Group
   AUDI: Volkswagen Group
+  AUDI-NSU: Volkswagen Group
   PORSCHE: Volkswagen Group
   SKODA: Volkswagen Group
   ŠKODA: Volkswagen Group
@@ -150,10 +248,15 @@ brand_group:
 
   # Stellantis
   PEUGEOT: Stellantis
+  PEUGEOT-ALKO: Stellantis
+  PEUGEOT-DANGEL: Stellantis
   CITROEN: Stellantis
   CITROËN: Stellantis
+  CITROEN-DANGEL: Stellantis
+  CITROEN-POESSL: Stellantis
   DS: Stellantis
   FIAT: Stellantis
+  FIAT-ABARTH: Stellantis
   ALFA ROMEO: Stellantis
   MASERATI: Stellantis
   LANCIA: Stellantis
@@ -163,6 +266,7 @@ brand_group:
   CHRYSLER: Stellantis
   RAM: Stellantis
   OPEL: Stellantis
+  OPEL-DANGEL: Stellantis
 
   # Toyota Motor Corporation
   TOYOTA: Toyota
@@ -185,6 +289,8 @@ brand_group:
 
   # BMW Group
   BMW: BMW Group
+  BMW/ALPINA: BMW Group
+  ALPINA: BMW Group
   MINI: BMW Group
   ROLLS-ROYCE: BMW Group
   ROLLS ROYCE: BMW Group
@@ -192,11 +298,17 @@ brand_group:
   # Mercedes-Benz Group
   MERCEDES-BENZ: Mercedes-Benz
   MERCEDES BENZ: Mercedes-Benz
+  MERCEDES-AMG: Mercedes-Benz
+  MERCEDES-ADRIA: Mercedes-Benz
+  MERCEDES-BENZ-HYMER: Mercedes-Benz
+  MERCEDES-BENZ-WEINSBERG: Mercedes-Benz
   SMART: Mercedes-Benz
   MAYBACH: Mercedes-Benz
+  DAIMLER: Mercedes-Benz
 
   # Geely
   VOLVO: Geely
+  VOLVO-T: Geely
   POLESTAR: Geely
   ZEEKR: Geely
   LYNK & CO: Geely
@@ -205,6 +317,8 @@ brand_group:
 
   # Ford
   FORD: Ford
+  FORD ECONOLINE: Ford
+  FORD-CNG-TECHNIK: Ford
 
   # Tesla
   TESLA: Tesla
@@ -314,4 +428,5 @@ colors:
   Bunt: Multicolor
   "Feldgrau (Nur für Militärfahrzeuge)": Grey
   "Fleckentarnung ( Nur für Militärfahrzeuge)": Camouflage
+  Effektlack: Other
   unbekannt: Other
